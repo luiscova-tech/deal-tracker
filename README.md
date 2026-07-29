@@ -28,8 +28,8 @@ calls `main.py` every 15 minutes.
 ## Layout
 
 - `adapters/` — one module per site, each implementing `fetch_listings(filters)
-  -> list[Listing]` (see `adapters/base.py`). `adapters/nellis.py` is currently
-  a stub that always returns `[]`.
+  -> list[Listing]` (see `adapters/base.py`). `adapters/nellis.py` hits Nellis's
+  search endpoint directly; see "Nellis adapter" below.
 - `core/` — site-agnostic logic: dedup against seen items, watchlist matching,
   reminder scheduling.
 - `notifications/` — pluggable channels implementing `send(message, target)`:
@@ -40,15 +40,29 @@ calls `main.py` every 15 minutes.
 
 ## Status
 
-Not yet connected to anything real:
-
-- **Nellis adapter** (`adapters/nellis.py`) always returns no listings —
-  the actual API/scrape call is next, once we've inspected Nellis's network
-  traffic together.
+- **Nellis adapter** (`adapters/nellis.py`) is implemented and hits the real
+  site — see "Nellis adapter" below for what it needs to actually return results.
 - **Supabase** (`db/`) has a schema and client set up, but no project is
   wired in yet. Until `SUPABASE_URL` / `SUPABASE_KEY` are set, `db/repository.py`
   transparently runs against a couple of fake in-memory watchlist items instead,
   so the whole pipeline is runnable today.
+
+## Nellis adapter
+
+Hits `GET nellisauction.com/search?query=<keyword>&_data=routes/search`
+directly — no login required, confirmed via DevTools. Results are scoped by
+a `__shopping-location` cookie; without it Nellis defaults to Las Vegas and
+returns zero Mesa/Phoenix results, so the adapter treats a missing
+`NELLIS_SHOPPING_LOCATION_COOKIE` env var as a hard stop (logs a warning,
+returns `[]`) rather than silently querying the wrong region. That cookie is
+a location preference, not a login credential — see `.env.example` for how
+to grab its value from your browser, and note it's currently only good
+until 2027-09-02.
+
+The API has no product-URL field, so `adapters/nellis.py` builds one from
+the numeric id (`/p/<slug>/<id>`) — Nellis's own router only actually looks
+up the trailing id, ignoring the slug, which was confirmed by loading a
+product page with a deliberately wrong slug.
 
 ## Running it
 
@@ -58,9 +72,17 @@ cp .env.example .env   # fill in what you have; unset vars just disable that pie
 python main.py
 ```
 
-With a blank `.env`, this runs the fake watchlist through the (empty) Nellis
-adapter and logs what it would have notified, so you can see the pipeline
-execute end-to-end before any real credentials exist.
+With a blank `.env`, the Nellis adapter has no shopping-location cookie to
+work with, so it logs a warning and returns no listings — the fake watchlist
+still runs through the rest of the pipeline end-to-end, so you can see it
+execute before any real credentials exist. Set `NELLIS_SHOPPING_LOCATION_COOKIE`
+to get real results back.
+
+Run the tests (mocked — no real network calls) with:
+
+```bash
+python -m unittest discover -s tests
+```
 
 ## Data model
 
@@ -70,7 +92,6 @@ and `bid_reminders` (one-off reminders to check back on a bid).
 
 ## Next steps
 
-1. Inspect Nellis Auction's network traffic to find the real listings
-   endpoint, then implement `adapters/nellis.py`.
-2. Create the Supabase project and run `db/schema.sql`.
-3. Add real watchlist items and point `.env` at real SMTP / ntfy.sh config.
+1. Create the Supabase project and run `db/schema.sql`.
+2. Add real watchlist items and point `.env` at real SMTP / ntfy.sh / Nellis
+   cookie config.

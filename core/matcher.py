@@ -13,8 +13,10 @@ def matches(watchlist_item: dict, listing: Listing) -> bool:
     if keyword not in listing.title.lower():
         return False
 
+    # Site location names (e.g. Nellis's "Mesa") aren't guaranteed to match
+    # the watchlist's casing convention (e.g. "mesa"), so compare lowercase.
     location = watchlist_item.get("location")
-    if location and location != "both" and listing.location and listing.location != location:
+    if location and location.lower() != "both" and listing.location and listing.location.lower() != location.lower():
         return False
 
     price_ceiling = watchlist_item.get("price_ceiling")

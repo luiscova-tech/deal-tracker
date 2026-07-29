@@ -1,5 +1,6 @@
 """Common interface every site adapter implements."""
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 
@@ -23,6 +24,9 @@ class Listing:
     price: float
     url: str
     location: Optional[str] = None
+    close_time: Optional[datetime] = None
+    bid_count: Optional[int] = None
+    next_bid: Optional[float] = None
 
 
 class Adapter:
