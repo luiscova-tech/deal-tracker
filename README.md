@@ -90,8 +90,24 @@ See `db/schema.sql`. Three tables: `watchlist_items` (what to look for),
 `seen_items` (dedup log, one row per listing ever matched to a watchlist item),
 and `bid_reminders` (one-off reminders to check back on a bid).
 
+## Frontend
+
+`web/` is a Next.js (App Router + TypeScript + Tailwind) app, kept in this
+repo rather than a separate one. Right now it's just auth: `/login` sends a
+Supabase magic link, and a protected `/dashboard` placeholder proves the
+session works end-to-end (shows the logged-in user's email). Watchlist CRUD
+and match history are next.
+
+```bash
+cd web
+cp .env.local.example .env.local   # fill in your Supabase project URL + publishable key
+npm install
+npm run dev
+```
+
 ## Next steps
 
 1. Create the Supabase project and run `db/schema.sql`.
 2. Add real watchlist items and point `.env` at real SMTP / ntfy.sh / Nellis
    cookie config.
+3. Build out `web/dashboard`: watchlist CRUD and match history.
