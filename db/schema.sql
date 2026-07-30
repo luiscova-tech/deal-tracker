@@ -64,3 +64,11 @@ create table bid_reminders (
 create index seen_items_watchlist_item_id_idx on seen_items (watchlist_item_id);
 create index bid_reminders_due_idx on bid_reminders (remind_at) where not sent;
 create index watchlist_items_user_id_idx on watchlist_items (user_id);
+
+-- Match history: persist listing details on seen_items so a future dashboard
+-- can show recent matches without re-fetching from the site. seen_items
+-- already exists in production, so these are separate alter statements
+-- rather than edits to the create table above — run manually.
+alter table seen_items add column title text;
+alter table seen_items add column price numeric;
+alter table seen_items add column url text;

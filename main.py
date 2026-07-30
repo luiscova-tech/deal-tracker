@@ -68,7 +68,7 @@ def check_watchlist(notifiers: list[tuple]) -> None:
 
         seen_ids = repository.get_seen_site_item_ids(item["id"])
         for listing in filter_new(listings, seen_ids):
-            repository.mark_seen(item["id"], listing.site_item_id)
+            repository.mark_seen(item["id"], listing)
             if matches(item, listing):
                 notify_all(
                     notifiers,

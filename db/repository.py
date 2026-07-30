@@ -8,6 +8,7 @@ fakes just stop being reachable — no other code needs to change.
 """
 from datetime import datetime, timezone
 
+from adapters.base import Listing
 from db.client import get_client
 
 _FAKE_WATCHLIST = [
@@ -30,6 +31,7 @@ _FAKE_WATCHLIST = [
 ]
 
 _fake_seen: dict[str, set[str]] = {}
+_fake_matches: list[dict] = []
 _fake_reminders: list[dict] = []
 
 
@@ -61,18 +63,62 @@ def get_seen_site_item_ids(watchlist_item_id: str) -> set[str]:
     return {row["site_item_id"] for row in result.data}
 
 
-def mark_seen(watchlist_item_id: str, site_item_id: str) -> None:
+def mark_seen(watchlist_item_id: str, listing: Listing) -> None:
     client = get_client()
     if client is None:
-        _fake_seen.setdefault(watchlist_item_id, set()).add(site_item_id)
+        _fake_seen.setdefault(watchlist_item_id, set()).add(listing.site_item_id)
+        watchlist_item = get_watchlist_item(watchlist_item_id)
+        _fake_matches.append(
+            {
+                "watchlist_item_id": watchlist_item_id,
+                "watchlist_item_name": watchlist_item["name"] if watchlist_item else None,
+                "site_item_id": listing.site_item_id,
+                "title": listing.title,
+                "price": listing.price,
+                "url": listing.url,
+                "first_seen_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         return
     client.table("seen_items").insert(
         {
             "watchlist_item_id": watchlist_item_id,
-            "site_item_id": site_item_id,
+            "site_item_id": listing.site_item_id,
+            "title": listing.title,
+            "price": listing.price,
+            "url": listing.url,
             "first_seen_at": datetime.now(timezone.utc).isoformat(),
         }
     ).execute()
+
+
+def get_recent_matches(user_id: str, limit: int = 50) -> list[dict]:
+    """
+    Recent matches (seen_items) for `user_id`'s watchlist, newest first —
+    what the dashboard's match-history view will call. Joins in the parent
+    watchlist_item's name and flattens it to `watchlist_item_name`.
+
+    Fake mode doesn't model multiple users, so `user_id` is ignored there.
+    """
+    client = get_client()
+    if client is None:
+        return list(reversed(_fake_matches))[:limit]
+
+    result = (
+        client.table("seen_items")
+        .select("*, watchlist_items!inner(name, user_id)")
+        .eq("watchlist_items.user_id", user_id)
+        .order("first_seen_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return [_flatten_match(row) for row in result.data]
+
+
+def _flatten_match(row: dict) -> dict:
+    watchlist_item = row.pop("watchlist_items", {}) or {}
+    row["watchlist_item_name"] = watchlist_item.get("name")
+    return row
 
 
 def get_unsent_reminders() -> list[dict]:
