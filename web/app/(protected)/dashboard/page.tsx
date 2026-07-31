@@ -2,6 +2,16 @@ import { verifySession } from "@/lib/supabase/dal";
 import { createClient } from "@/lib/supabase/server";
 import { WatchlistList } from "./WatchlistList";
 import { WatchlistItemForm } from "./WatchlistItemForm";
+import { RecentMatches, type RecentMatch } from "./RecentMatches";
+
+type MatchRow = {
+  id: string;
+  title: string | null;
+  price: number | null;
+  url: string | null;
+  first_seen_at: string;
+  watchlist_items: { name: string } | null;
+};
 
 export default async function DashboardPage() {
   const { user } = await verifySession();
@@ -15,6 +25,29 @@ export default async function DashboardPage() {
   if (itemsError) {
     console.error("Failed to load watchlist_items", itemsError);
   }
+
+  // RLS scopes this to the signed-in user's own matches (their watchlist
+  // items' seen_items rows) — see db/schema.sql's "Users can view their
+  // own matches" policy.
+  const { data: matchRows, error: matchesError } = await supabase
+    .from("seen_items")
+    .select("id, title, price, url, first_seen_at, watchlist_items!inner(name)")
+    .order("first_seen_at", { ascending: false })
+    .limit(20)
+    .returns<MatchRow[]>();
+
+  if (matchesError) {
+    console.error("Failed to load recent matches", matchesError);
+  }
+
+  const matches: RecentMatch[] = (matchRows ?? []).map((row) => ({
+    id: row.id,
+    watchlistItemName: row.watchlist_items?.name ?? null,
+    title: row.title,
+    price: row.price,
+    url: row.url,
+    firstSeenAt: row.first_seen_at,
+  }));
 
   return (
     <main className="px-4 py-8">
@@ -37,6 +70,19 @@ export default async function DashboardPage() {
             </p>
           ) : (
             <WatchlistList items={items ?? []} />
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+            Recent matches
+          </h2>
+          {matchesError ? (
+            <p className="mt-3 text-sm text-red-600">
+              Couldn&rsquo;t load recent matches. Try refreshing the page.
+            </p>
+          ) : (
+            <RecentMatches matches={matches} />
           )}
         </section>
 

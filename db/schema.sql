@@ -43,8 +43,10 @@ create policy "Users can manage their own watchlist items"
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 
--- No RLS below this point — seen_items and bid_reminders are backend-only,
--- written and read solely by the scheduled job via the service role key.
+-- seen_items and bid_reminders are written solely by the scheduled job via
+-- the service role key, which bypasses RLS regardless. seen_items later
+-- gets a read-only policy below once the dashboard needs to read it
+-- directly; bid_reminders still has none as of this writing.
 
 create table seen_items (
     id uuid primary key default gen_random_uuid(),
@@ -94,3 +96,18 @@ $$;
 create trigger on_auth_user_created
     after insert on auth.users
     for each row execute function public.handle_new_user();
+
+-- Recent-matches dashboard section reads seen_items directly via the
+-- RLS-scoped (publishable key) client, so it needs its own policy — it had
+-- none before since only the service-role-key backend ever touched it.
+-- seen_items has no user_id column of its own, so the check goes through
+-- its parent watchlist_item. Read-only: the backend still writes via the
+-- service role key, which bypasses this regardless.
+alter table seen_items enable row level security;
+
+create policy "Users can view their own matches"
+    on seen_items
+    for select
+    using (
+        auth.uid() = (select user_id from watchlist_items where id = seen_items.watchlist_item_id)
+    );
