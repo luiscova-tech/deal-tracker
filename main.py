@@ -10,6 +10,7 @@ you can watch the whole pipeline execute before either exists.
 """
 import logging
 import os
+from collections import defaultdict
 
 from dotenv import load_dotenv
 
@@ -32,8 +33,42 @@ ADAPTERS = {
 }
 
 
+def build_email_target() -> tuple[EmailNotifier, str] | None:
+    """
+    Email stays global for now (per request — nobody has SMTP configured
+    yet in practice, so this path is unused either way). Per-user email is
+    a follow-up: it'd need to read the target address off each watchlist
+    item's owning user the same way ntfy_topic does below, plus a real
+    per-user email column (profiles only has ntfy_topic today).
+    """
+    if os.environ.get("SMTP_HOST") and os.environ.get("NOTIFY_EMAIL_TO"):
+        return EmailNotifier(), os.environ["NOTIFY_EMAIL_TO"]
+    return None
+
+
+def resolve_ntfy_topic(user_id: str | None, item: dict) -> str | None:
+    """
+    Real watchlist items carry their owning user's ntfy_topic (joined in
+    db/repository.py's get_watchlist_items()). Fake/no-Supabase mode has
+    no real user at all (user_id is None), so it falls back to the shared
+    NTFY_TOPIC env var used for local dev testing.
+    """
+    if user_id is None:
+        return os.environ.get("NTFY_TOPIC")
+    return item.get("ntfy_topic")
+
+
 def build_notifiers() -> list[tuple]:
-    """Only wire up channels that have their required config set."""
+    """
+    Global notifiers, used only by check_reminders() below.
+
+    TODO: bid_reminders has the same "global broadcast" problem
+    check_watchlist() used to have — a reminder belongs to one watchlist
+    item, which belongs to one user, but this still fires to whatever's
+    configured in NTFY_TOPIC/SMTP_* for everyone. Not fixed here since
+    nothing creates reminders yet (bid_reminders is empty in practice) —
+    flagging it rather than leaving it silently wrong.
+    """
     notifiers = []
     if os.environ.get("SMTP_HOST") and os.environ.get("NOTIFY_EMAIL_TO"):
         notifiers.append((EmailNotifier(), os.environ["NOTIFY_EMAIL_TO"]))
@@ -50,7 +85,13 @@ def notify_all(notifiers: list[tuple], message: str) -> None:
         notifier.send(message, target)
 
 
-def check_watchlist(notifiers: list[tuple]) -> None:
+def check_watchlist() -> None:
+    email_target = build_email_target()
+    ntfy_notifier = NtfyNotifier()
+
+    messages_by_user: dict[str | None, list[str]] = defaultdict(list)
+    ntfy_topic_by_user: dict[str | None, str | None] = {}
+
     for item in repository.get_watchlist_items():
         adapter = ADAPTERS.get(item["site"])
         if adapter is None:
@@ -70,10 +111,30 @@ def check_watchlist(notifiers: list[tuple]) -> None:
         for listing in filter_new(listings, seen_ids):
             repository.mark_seen(item["id"], listing)
             if matches(item, listing):
-                notify_all(
-                    notifiers,
-                    f"New match for '{item['name']}': {listing.title} — ${listing.price} ({listing.url})",
+                message = (
+                    f"New match for '{item['name']}': {listing.title} "
+                    f"— ${listing.price} ({listing.url})"
                 )
+
+                if email_target:
+                    notifier, target = email_target
+                    notifier.send(message, target)
+
+                user_id = item.get("user_id")
+                messages_by_user[user_id].append(message)
+                ntfy_topic_by_user[user_id] = resolve_ntfy_topic(user_id, item)
+
+    for user_id, messages in messages_by_user.items():
+        ntfy_topic = ntfy_topic_by_user[user_id]
+        if not ntfy_topic:
+            log.info(
+                "No ntfy_topic for user %s — skipping %d match notification(s)",
+                user_id,
+                len(messages),
+            )
+            continue
+        for message in messages:
+            ntfy_notifier.send(message, ntfy_topic)
 
 
 def check_reminders(notifiers: list[tuple]) -> None:
@@ -86,8 +147,8 @@ def check_reminders(notifiers: list[tuple]) -> None:
 
 
 def main():
+    check_watchlist()
     notifiers = build_notifiers()
-    check_watchlist(notifiers)
     check_reminders(notifiers)
 
 

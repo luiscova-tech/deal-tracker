@@ -19,6 +19,8 @@ _FAKE_WATCHLIST = [
         "location": "mesa",
         "price_ceiling": 200.0,
         "size": None,
+        "user_id": None,
+        "ntfy_topic": None,
     },
     {
         "id": "fake-2",
@@ -27,6 +29,8 @@ _FAKE_WATCHLIST = [
         "location": "both",
         "price_ceiling": 300.0,
         "size": None,
+        "user_id": None,
+        "ntfy_topic": None,
     },
 ]
 
@@ -36,10 +40,31 @@ _fake_reminders: list[dict] = []
 
 
 def get_watchlist_items() -> list[dict]:
+    """
+    All watchlist items, each with its owning user's ntfy_topic attached
+    under the "ntfy_topic" key, so main.py can route notifications
+    per-user without a separate query per item.
+
+    watchlist_items.user_id and profiles.id both reference auth.users
+    independently (no direct FK between the two tables), so PostgREST
+    can't auto-embed profiles onto watchlist_items — this does two
+    queries and joins them in Python instead.
+
+    Fake mode has no real user/profile concept, so fake items carry
+    user_id=None, ntfy_topic=None — main.py treats a None user_id as
+    "fall back to the shared NTFY_TOPIC env var for local testing."
+    """
     client = get_client()
     if client is None:
         return _FAKE_WATCHLIST
-    return client.table("watchlist_items").select("*").execute().data
+
+    items = client.table("watchlist_items").select("*").execute().data
+    profiles = client.table("profiles").select("id, ntfy_topic").execute().data
+    ntfy_topic_by_user_id = {profile["id"]: profile["ntfy_topic"] for profile in profiles}
+
+    for item in items:
+        item["ntfy_topic"] = ntfy_topic_by_user_id.get(item["user_id"])
+    return items
 
 
 def get_watchlist_item(watchlist_item_id: str) -> dict | None:
