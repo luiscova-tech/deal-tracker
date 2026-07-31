@@ -2,7 +2,14 @@ name: Check for new deals
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Dense: every 5 min, 4:00-5:30 AM UTC (9:00-10:30 PM Arizona time,
+    # fixed year-round since Arizona doesn't observe DST). Split across two
+    # lines since the window ends mid-hour at 5:30, not 5:55.
+    - cron: "*/5 4 * * *"
+    - cron: "0,5,10,15,20,25,30 5 * * *"
+    # Sparse: once per hour the rest of the day, as a safety net. Excludes
+    # hours 4-5 so it doesn't double up with the dense schedule above.
+    - cron: "0 0-3,6-23 * * *"
   workflow_dispatch:
 
 jobs:
