@@ -1,4 +1,5 @@
 import { verifySession } from "@/lib/supabase/dal";
+import { Nav } from "@/components/Nav";
 
 // Redirects to /login if there's no session. Note: per Next.js's own
 // guidance, layouts don't re-run on client-side navigation between sibling
@@ -11,5 +12,10 @@ export default async function ProtectedLayout({
 }) {
   await verifySession();
 
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <Nav />
+      <div className="flex-1">{children}</div>
+    </div>
+  );
 }

@@ -72,3 +72,25 @@ create index watchlist_items_user_id_idx on watchlist_items (user_id);
 alter table seen_items add column title text;
 alter table seen_items add column price numeric;
 alter table seen_items add column url text;
+
+-- Auto-create a profiles row whenever someone signs up, so the app never
+-- has to handle "no profile yet" for a new user. security definer is
+-- required: this runs as part of the internal auth.users insert, not as
+-- the new user's own authenticated request, so it must bypass profiles'
+-- RLS policy rather than satisfy it. search_path is pinned to prevent a
+-- search_path-hijacking attack against a security definer function.
+create function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+    insert into public.profiles (id, email)
+    values (new.id, new.email);
+    return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute function public.handle_new_user();

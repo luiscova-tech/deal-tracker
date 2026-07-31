@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="min-h-dvh px-4 py-8">
+    <main className="px-4 py-8">
       <div className="mx-auto max-w-sm space-y-8">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>

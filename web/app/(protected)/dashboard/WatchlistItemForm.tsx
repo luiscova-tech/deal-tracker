@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import { Button } from "@/components/Button";
 import {
   createWatchlistItem,
   updateWatchlistItem,
@@ -98,21 +99,13 @@ export function WatchlistItemForm({
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="flex-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isPending} className="flex-1">
           {isPending ? "Saving…" : item ? "Save changes" : "Add item"}
-        </button>
+        </Button>
         {item && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
-          >
+          <Button type="button" variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
       </div>
     </form>

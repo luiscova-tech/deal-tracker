@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Button } from "@/components/Button";
 import { deleteWatchlistItem, type ActionState, type WatchlistItem } from "./actions";
 import { WatchlistItemForm } from "./WatchlistItemForm";
 
@@ -38,13 +39,9 @@ export function WatchlistList({ items }: { items: WatchlistItem[] }) {
                 </p>
               </div>
               <div className="flex shrink-0 items-start gap-1">
-                <button
-                  type="button"
-                  onClick={() => setEditingId(item.id)}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700"
-                >
+                <Button type="button" variant="ghost" onClick={() => setEditingId(item.id)}>
                   Edit
-                </button>
+                </Button>
                 <DeleteButton id={item.id} name={item.name} />
               </div>
             </div>
@@ -72,13 +69,9 @@ function DeleteButton({ id, name }: { id: string; name: string }) {
         }
       }}
     >
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-md px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-50"
-      >
+      <Button type="submit" variant="danger" disabled={isPending}>
         {isPending ? "Deleting…" : "Delete"}
-      </button>
+      </Button>
       {state.error && <p className="mt-1 text-xs text-red-600">{state.error}</p>}
     </form>
   );
