@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { Button } from "@/components/Button";
 import { createClient } from "@/lib/supabase/client";
 
@@ -87,6 +88,12 @@ export default function LoginPage() {
         <Button type="submit" disabled={status === "sending"} className="w-full">
           {status === "sending" ? "Sending…" : "Send magic link"}
         </Button>
+
+        <p className="text-center">
+          <Link href="/how-to-use" className="text-sm text-gray-500 underline">
+            How does this work?
+          </Link>
+        </p>
       </form>
     </main>
   );
